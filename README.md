@@ -8,12 +8,18 @@ A tiny Node.js CLI that renders a code snippet into a ray.so-style image using S
 npm install
 ```
 
+Export your OpenAI API key so the warmup call can run:
+
+```bash
+export OPENAI_API_KEY="..."
+```
+
 ## Usage
 
 Render from a file:
 
 ```bash
-node scripts/render-snippet.js --input ./example.js --lang js --theme nord --output out.png
+node --env-file=.env scripts/render-snippet.js --input ./example.js --lang js --theme nord --output out.png
 ```
 
 Render from stdin:

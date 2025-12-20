@@ -7,6 +7,8 @@
     "render": "node scripts/render-snippet.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^1.0.0",
+    "ai": "^3.3.0",
     "puppeteer": "^22.10.0",
     "shiki": "^1.6.0"
   }

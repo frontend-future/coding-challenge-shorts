@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
 import { getHighlighter, bundledThemes, bundledLanguages } from "shiki";
 import puppeteer from "puppeteer";
 
@@ -222,6 +224,20 @@ function resolveLanguage(requested, fallback) {
   return available[0] || fallback;
 }
 
+async function runDummyOpenAICall() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("Missing OPENAI_API_KEY. Set it to run the OpenAI warmup call.");
+  }
+
+  const response = await generateText({
+    model: openai("gpt-4o-mini"),
+    prompt: "Reply with the single word: ok",
+    maxTokens: 1
+  });
+
+  console.log({response});
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
@@ -240,6 +256,8 @@ async function main() {
   const output = opts.output || DEFAULTS.output;
   const scale = toNumber(opts.scale, DEFAULTS.scale);
   const fontSize = toNumber(opts["font-size"] || opts.fontSize || opts.fontsize, 16);
+
+  await runDummyOpenAICall();
 
   const theme = resolveTheme(requestedTheme, DEFAULTS.theme);
   const lang = resolveLanguage(requestedLang, DEFAULTS.lang);

@@ -1,0 +1,13 @@
+{
+  "name": "code-snippet-image",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node scripts/render-snippet.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.10.0",
+    "shiki": "^1.6.0"
+  }
+}

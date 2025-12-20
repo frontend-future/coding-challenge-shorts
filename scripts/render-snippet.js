@@ -297,9 +297,9 @@ async function main() {
     await page.setContent(html, { waitUntil: "load" });
 
     const clip = await page.evaluate(() => {
-      const canvas = document.querySelector(".canvas");
-      if (!canvas) return null;
-      const rect = canvas.getBoundingClientRect();
+      const frame = document.querySelector(".frame");
+      if (!frame) return null;
+      const rect = frame.getBoundingClientRect();
       return {
         x: Math.floor(rect.x),
         y: Math.floor(rect.y),

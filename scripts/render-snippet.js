@@ -7,7 +7,7 @@ import puppeteer from "puppeteer";
 const DEFAULTS = {
   lang: "javascript",
   theme: "nord",
-  width: 960,
+  width: 720,
   padding: 64,
   font: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   title: "snippet",
@@ -47,7 +47,7 @@ function showHelp() {
     "  --output <path>    Output image path (default: snippet.png)",
     "  --lang <id>        Language for highlighting (default: javascript)",
     "  --theme <id>       Shiki theme (default: nord)",
-    "  --width <px>       Code frame width (default: 960)",
+    "  --width <px>       Code frame width (default: 720)",
     "  --padding <px>     Canvas padding around frame (default: 64)",
     "  --background <css> Canvas background CSS (default: gradient)",
     "  --font <css>       Font-family for code (default: system monospace stack)",

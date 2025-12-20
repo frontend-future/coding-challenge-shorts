@@ -162,7 +162,6 @@ function buildHtml({
     .dot.red { background: #f87171; }
     .dot.yellow { background: #facc15; }
     .dot.green { background: #4ade80; }
-    .title { opacity: 0.7; }
     .code {
       padding: 24px;
       font-size: ${fontSize}px;
@@ -179,11 +178,7 @@ function buildHtml({
       background: transparent !important;
       padding: 0 !important;
     }
-    .theme-label {
-      margin-left: auto;
-      opacity: 0.4;
-      font-size: 11px;
-    }
+    .chrome { justify-content: flex-start; }
   </style>
 </head>
 <body>
@@ -195,8 +190,6 @@ function buildHtml({
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <div class="title">${escapeHtml(title)}</div>
-        <div class="theme-label">${escapeHtml(themeName)}</div>
       </div>
       <div class="code">
         ${codeHtml}

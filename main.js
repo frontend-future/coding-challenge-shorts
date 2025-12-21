@@ -19,7 +19,8 @@ const DEFAULTS = {
   scale: 2,
   fontSize: 24,
   videoDuration: 10,
-  bRollPath: "./bRoll.mov" // Path to background video
+  bRollPath: "./bRoll.mov", // Path to background video
+  audioFolder: "./audio" // Path to audio folder
 };
 
 const PROMPT = `You are helping me produce viral Instagram Reels for the brand @frontendfuture.
@@ -103,6 +104,35 @@ async function getVideoDuration(videoPath) {
       }
     });
   });
+}
+
+async function getRandomAudioFile(audioFolder) {
+  console.log("\nSelecting random audio file...");
+  
+  try {
+    const files = await fs.readdir(audioFolder);
+    
+    // Filter for common audio file extensions
+    const audioFiles = files.filter(file => {
+      const ext = path.extname(file).toLowerCase();
+      return ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'].includes(ext);
+    });
+    
+    if (audioFiles.length === 0) {
+      throw new Error(`No audio files found in ${audioFolder}`);
+    }
+    
+    // Select random audio file
+    const randomIndex = Math.floor(Math.random() * audioFiles.length);
+    const selectedAudio = audioFiles[randomIndex];
+    const audioPath = path.join(audioFolder, selectedAudio);
+    
+    console.log(`✓ Selected audio: ${selectedAudio}`);
+    
+    return audioPath;
+  } catch (err) {
+    throw new Error(`Failed to read audio folder: ${err.message}`);
+  }
 }
 
 async function extractRandomVideoSegment(inputVideo, outputVideo, duration) {
@@ -317,24 +347,32 @@ function buildHtml({ codeHtml, width, height, padding, background, font, fontSiz
 </html>`;
 }
 
-async function overlayCodeOnVideo(backgroundVideo, overlayImage, outputVideo, duration) {
-  console.log("\nOverlaying code snippet on background video...");
+async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioPath, outputVideo, duration) {
+  console.log("\nOverlaying code snippet on background video and adding audio...");
   
   return new Promise((resolve, reject) => {
     ffmpeg()
       .input(backgroundVideo)
       .input(overlayImage)
+      .input(audioPath)
       .complexFilter([
         // Scale and position the overlay image to cover the entire video
         '[1:v]scale=1080:1920[overlay]',
-        '[0:v][overlay]overlay=0:0'
+        '[0:v][overlay]overlay=0:0[video]',
+        // Trim audio to match video duration
+        '[2:a]atrim=0:' + duration + ',asetpts=PTS-STARTPTS[audio]'
       ])
       .outputOptions([
+        '-map [video]',
+        '-map [audio]',
         '-c:v libx264',
+        '-c:a aac',
+        '-b:a 192k',
         '-t ' + duration,
         '-pix_fmt yuv420p',
         '-preset medium',
-        '-crf 23'
+        '-crf 23',
+        '-shortest'
       ])
       .output(outputVideo)
       .on('start', (commandLine) => {
@@ -346,12 +384,12 @@ async function overlayCodeOnVideo(backgroundVideo, overlayImage, outputVideo, du
         }
       })
       .on('end', () => {
-        console.log(`\n✓ Final video created: ${outputVideo}`);
+        console.log(`\n✓ Final video with audio created: ${outputVideo}`);
         resolve();
       })
       .on('error', (err) => {
         console.error('\nFFmpeg error:', err.message);
-        reject(new Error('Failed to overlay code on video.'));
+        reject(new Error('Failed to overlay code on video with audio.'));
       })
       .run();
   });
@@ -377,6 +415,13 @@ async function main() {
     throw new Error(`B-roll video not found at: ${DEFAULTS.bRollPath}`);
   }
 
+  // Check if audio folder exists
+  try {
+    await fs.access(DEFAULTS.audioFolder);
+  } catch (err) {
+    throw new Error(`Audio folder not found at: ${DEFAULTS.audioFolder}`);
+  }
+
   console.log(`Generating 1 code snippet for a ${duration}s video...\n`);
 
   const browser = await puppeteer.launch({ headless: "new" });
@@ -391,15 +436,19 @@ async function main() {
     // Extract random segment from b-roll video
     await extractRandomVideoSegment(DEFAULTS.bRollPath, bRollSegmentPath, duration);
 
-    // Overlay the code snippet on the video background
-    await overlayCodeOnVideo(bRollSegmentPath, imagePath, videoPath, duration);
+    // Get random audio file
+    const audioPath = await getRandomAudioFile(DEFAULTS.audioFolder);
+
+    // Overlay the code snippet on the video background and add audio
+    await overlayCodeOnVideoWithAudio(bRollSegmentPath, imagePath, audioPath, videoPath, duration);
 
     // Save caption to file
     const captionContent = 
       `==================== REEL ====================\n` +
       `DIFFICULTY: ${snippet.difficulty}\n\n` +
       `CODE:\n${snippet.code}\n\n` +
-      `CAPTION:\n${snippet.caption}\n`;
+      `CAPTION:\n${snippet.caption}\n\n` +
+      `AUDIO: ${path.basename(audioPath)}\n`;
     
     await fs.writeFile(captionPath, captionContent);
     console.log(`✓ Caption saved: ${captionPath}`);
@@ -412,6 +461,7 @@ async function main() {
     console.log(`📝 Caption: ${captionPath}`);
     console.log(`🖼️  Image: ${imagePath}`);
     console.log(`🎬 B-roll segment: ${bRollSegmentPath}`);
+    console.log(`🎵 Audio: ${path.basename(audioPath)}`);
   } finally {
     await browser.close();
   }

@@ -11,16 +11,17 @@ dotenv.config();
 
 const DEFAULTS = {
   theme: "nord",
-  width: 1080,  // Instagram Reel width
-  height: 1920, // Instagram Reel height (9:16 aspect ratio)
+  width: 1080,
+  height: 1920,
   padding: 80,
   font: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   background: "radial-gradient(1200px circle at 10% 20%, #1f2937 0%, #0f172a 45%, #020617 100%)",
   scale: 2,
   fontSize: 24,
-  videoDuration: 10,
-  bRollPath: "./bRoll.mov", // Path to background video
-  audioFolder: "./audio" // Path to audio folder
+  videoDuration: 7,
+  bRollPath: "./bRoll.mov",
+  audioFolder: "./audio",
+  levelAppearTime: 2 // Level text appears at 2 seconds
 };
 
 const PROMPT = `You are helping me produce viral Instagram Reels for the brand @frontendfuture.
@@ -86,7 +87,6 @@ async function generateSnippetWithAI(index) {
     temperature: 0.9
   });
 
-  // Clean the response - remove any markdown code blocks
   let cleanText = response.text.trim();
   cleanText = cleanText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
   
@@ -112,7 +112,6 @@ async function getRandomAudioFile(audioFolder) {
   try {
     const files = await fs.readdir(audioFolder);
     
-    // Filter for common audio file extensions
     const audioFiles = files.filter(file => {
       const ext = path.extname(file).toLowerCase();
       return ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'].includes(ext);
@@ -122,7 +121,6 @@ async function getRandomAudioFile(audioFolder) {
       throw new Error(`No audio files found in ${audioFolder}`);
     }
     
-    // Select random audio file
     const randomIndex = Math.floor(Math.random() * audioFiles.length);
     const selectedAudio = audioFiles[randomIndex];
     const audioPath = path.join(audioFolder, selectedAudio);
@@ -138,10 +136,7 @@ async function getRandomAudioFile(audioFolder) {
 async function extractRandomVideoSegment(inputVideo, outputVideo, duration) {
   console.log("\nExtracting random segment from b-roll video...");
   
-  // Get total duration of the b-roll video
   const totalDuration = await getVideoDuration(inputVideo);
-  
-  // Calculate random start time (ensure we don't exceed video length)
   const maxStartTime = Math.max(0, totalDuration - duration);
   const startTime = Math.random() * maxStartTime;
   
@@ -180,6 +175,7 @@ async function extractRandomVideoSegment(inputVideo, outputVideo, duration) {
   });
 }
 
+// Modified to remove difficulty level from the image
 async function renderSnippet(code, difficulty, outputPath, browser) {
   const highlighter = await getHighlighter({ 
     themes: ["nord"], 
@@ -205,13 +201,11 @@ async function renderSnippet(code, difficulty, outputPath, browser) {
     padding: DEFAULTS.padding,
     background: DEFAULTS.background,
     font: DEFAULTS.font,
-    fontSize: DEFAULTS.fontSize,
-    difficulty
+    fontSize: DEFAULTS.fontSize
   });
 
   await page.setContent(html, { waitUntil: "load" });
   
-  // Screenshot with transparent background
   await page.screenshot({ 
     path: outputPath, 
     fullPage: false,
@@ -222,7 +216,8 @@ async function renderSnippet(code, difficulty, outputPath, browser) {
   console.log(`  ✓ Rendered: ${outputPath}`);
 }
 
-function buildHtml({ codeHtml, width, height, padding, background, font, fontSize, difficulty }) {
+// Modified to remove difficulty level
+function buildHtml({ codeHtml, width, height, padding, background, font, fontSize }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -259,7 +254,7 @@ function buildHtml({ codeHtml, width, height, padding, background, font, fontSiz
     .header h1 {
       font-size: 72px;
       font-weight: 700;
-      margin: 0 0 24px 0;
+      margin: 0;
       letter-spacing: -0.02em;
       text-shadow: 
         -2px -2px 0 #000,
@@ -268,20 +263,8 @@ function buildHtml({ codeHtml, width, height, padding, background, font, fontSiz
         2px 2px 0 #000,
         0 0 20px rgba(0, 0, 0, 0.5);
     }
-    .level {
-      font-size: 42px;
-      font-weight: 600;
-      color: #818cf8;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      text-shadow: 
-        -1.5px -1.5px 0 #000,
-        1.5px -1.5px 0 #000,
-        -1.5px 1.5px 0 #000,
-        1.5px 1.5px 0 #000,
-        0 0 15px rgba(0, 0, 0, 0.5);
-    }
     .frame {
+      margin-top: 50px;
       width: ${width - padding * 2}px;
       background: var(--frame-bg);
       border-radius: var(--frame-radius);
@@ -329,7 +312,6 @@ function buildHtml({ codeHtml, width, height, padding, background, font, fontSiz
 <body>
   <div class="header">
     <h1>What Is The Output?</h1>
-    <div class="level">Level: ${difficulty}</div>
   </div>
   <div class="frame">
     <div class="chrome">
@@ -347,8 +329,11 @@ function buildHtml({ codeHtml, width, height, padding, background, font, fontSiz
 </html>`;
 }
 
-async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioPath, outputVideo, duration) {
+// New function to add level text with FFmpeg
+async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioPath, outputVideo, duration, difficulty) {
   console.log("\nOverlaying code snippet on background video and adding audio...");
+  
+  const levelY = 840; // Position between "What Is The Output?" and the code frame
   
   return new Promise((resolve, reject) => {
     ffmpeg()
@@ -356,11 +341,24 @@ async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioP
       .input(overlayImage)
       .input(audioPath)
       .complexFilter([
-        // Scale and position the overlay image to cover the entire video
+        // Scale and position the overlay image
         '[1:v]scale=1080:1920[overlay]',
-        '[0:v][overlay]overlay=0:0[video]',
+        '[0:v][overlay]overlay=0:0[video_base]',
+        // Add level text that appears at 2 seconds
+        `[video_base]drawtext=` +
+        `text='LEVEL\\: ${difficulty}':` +
+        `fontfile=/System/Library/Fonts/Supplemental/Arial\\ Bold.ttf:` +
+        `fontsize=42:` +
+        `fontcolor=#818cf8:` +
+        `borderw=2:` +
+        `bordercolor=black:` +
+        `x=(w-text_w)/2:` +
+        `y=${levelY}:` +
+        `enable='gte(t,${DEFAULTS.levelAppearTime})':` +
+        `alpha='if(lt(t,${DEFAULTS.levelAppearTime}),0,if(lt(t,${DEFAULTS.levelAppearTime + 0.3}),(t-${DEFAULTS.levelAppearTime})/0.3,1))'` +
+        `[video]`,
         // Trim audio to match video duration
-        '[2:a]atrim=0:' + duration + ',asetpts=PTS-STARTPTS[audio]'
+        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS[audio]`
       ])
       .outputOptions([
         '-map [video]',
@@ -368,7 +366,7 @@ async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioP
         '-c:v libx264',
         '-c:a aac',
         '-b:a 192k',
-        '-t ' + duration,
+        `-t ${duration}`,
         '-pix_fmt yuv420p',
         '-preset medium',
         '-crf 23',
@@ -384,7 +382,7 @@ async function overlayCodeOnVideoWithAudio(backgroundVideo, overlayImage, audioP
         }
       })
       .on('end', () => {
-        console.log(`\n✓ Final video with audio created: ${outputVideo}`);
+        console.log(`\n✓ Final video with audio and level text created: ${outputVideo}`);
         resolve();
       })
       .on('error', (err) => {
@@ -402,20 +400,17 @@ async function main() {
   const videoPath = path.join(outputDir, "reel.mp4");
   const captionPath = path.join(outputDir, "caption.txt");
 
-  // Create output directory
   await fs.mkdir(outputDir, { recursive: true });
   console.log(`\n📁 Output directory: ${outputDir}\n`);
 
   const duration = DEFAULTS.videoDuration;
 
-  // Check if b-roll video exists
   try {
     await fs.access(DEFAULTS.bRollPath);
   } catch (err) {
     throw new Error(`B-roll video not found at: ${DEFAULTS.bRollPath}`);
   }
 
-  // Check if audio folder exists
   try {
     await fs.access(DEFAULTS.audioFolder);
   } catch (err) {
@@ -427,22 +422,17 @@ async function main() {
   const browser = await puppeteer.launch({ headless: "new" });
 
   try {
-    // Generate single snippet
     const snippet = await generateSnippetWithAI(0);
     
-    // Render the code snippet image
     await renderSnippet(snippet.code, snippet.difficulty, imagePath, browser);
 
-    // Extract random segment from b-roll video
     await extractRandomVideoSegment(DEFAULTS.bRollPath, bRollSegmentPath, duration);
 
-    // Get random audio file
     const audioPath = await getRandomAudioFile(DEFAULTS.audioFolder);
 
-    // Overlay the code snippet on the video background and add audio
-    await overlayCodeOnVideoWithAudio(bRollSegmentPath, imagePath, audioPath, videoPath, duration);
+    // Pass difficulty to the overlay function
+    await overlayCodeOnVideoWithAudio(bRollSegmentPath, imagePath, audioPath, videoPath, duration, snippet.difficulty);
 
-    // Save caption to file
     const captionContent = 
       `==================== REEL ====================\n` +
       `DIFFICULTY: ${snippet.difficulty}\n\n` +
@@ -462,6 +452,7 @@ async function main() {
     console.log(`🖼️  Image: ${imagePath}`);
     console.log(`🎬 B-roll segment: ${bRollSegmentPath}`);
     console.log(`🎵 Audio: ${path.basename(audioPath)}`);
+    console.log(`⏱️  Level appears at: ${DEFAULTS.levelAppearTime}s`);
   } finally {
     await browser.close();
   }
